@@ -1,21 +1,24 @@
 from sklearn.tree._tree import TREE_LEAF
 import itertools as it
 from collections import Counter
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
 
 def _feature_pair_report(pair_and_values,
-                         description='pairs', 
+                         description='pairs',
                          measurement='value',
                          note=None,
                          n=10):
-    print '-' * 80
-    print description
-    print '-' * 80
-    print 'feature pair : {}'.format(measurement)
+    print('-' * 80)
+    print(description)
+    print('-' * 80)
+    print('feature pair : {}'.format(measurement))
     for pair, value in it.islice(pair_and_values, n):
-        print '{} : {}'.format(pair, value)
+        print('{} : {}'.format(pair, value))
     if note is not None:
-        print '* {}'.format(note)
-    print
+        print('* {}'.format(note))
+    print()
 
 
 def feature_pairs_in_tree(dt):
@@ -28,7 +31,7 @@ def feature_pairs_in_tree(dt):
     list of list of tuple of int :
         Going from inside to out:
         1. Each int is a feature that a node split on
-    
+
         2. If two ints appear in the same tuple, then there was a node
            that split on the second feature immediately below a node
            that split on the first feature
@@ -56,23 +59,23 @@ def feature_pairs_in_tree(dt):
             right_child = children_right[node]
             if children_left[left_child] != TREE_LEAF:
                 results_this_depth.append(tuple(sorted(
-                    (feature[node], 
+                    (feature[node],
                      feature[left_child]))))
                 next_queue.append(left_child)
             if children_left[right_child] != TREE_LEAF:
                 results_this_depth.append(tuple(sorted(
-                    (feature[node], 
+                    (feature[node],
                      feature[right_child]))))
                 next_queue.append(right_child)
         result.append(results_this_depth)
-    result.pop() # The last results are always empty
+    result.pop()  # The last results are always empty
     return result
-    
+
 
 def feature_pairs_in_rf(rf, weight_by_depth=None, verbose=True, n=20):
     """Describes the frequency of features appearing subsequently in each tree
     in a random forest
-    
+
     Parameters
     ----------
     rf : sklearn.ensemble.RandomForestClassifier
@@ -82,8 +85,8 @@ def feature_pairs_in_rf(rf, weight_by_depth=None, verbose=True, n=20):
         metric"
         weight_by_depth is a vector. The 0th entry is the weight of being at
         depth 0; the 1st entry is the weight of being at depth 1, etc.
-        If not provided, wdiogenes are linear with negative depth. If 
-        the provided vector is not as long as the number of depths, then 
+        If not provided, wdiogenes are linear with negative depth. If
+        the provided vector is not as long as the number of depths, then
         remaining depths are weighted with 0
     verbose : boolean
         iff True, prints metrics to console
@@ -94,21 +97,21 @@ def feature_pairs_in_rf(rf, weight_by_depth=None, verbose=True, n=20):
     (collections.Counter, list of collections.Counter, dict, dict)
         A tuple with a number of metrics
         1. A Counter of cooccuring feature pairs at all depths
-        2. A list of Counters of feature pairs. Element 0 corresponds to 
+        2. A list of Counters of feature pairs. Element 0 corresponds to
            depth 0, element 1 corresponds to depth 1 etc.
         3. A dict where keys are feature pairs and values are the average
            depth of those feature pairs
         4. A dict where keys are feature pairs and values are the number
            of occurences of those feature pairs weighted by depth
-        
+
     """
     if not isinstance(rf, RandomForestClassifier):
         raise ValueError(
             'rf must be an sklearn.Ensemble.RandomForestClassifier')
 
     pairs_by_est = [feature_pairs_in_tree(est) for est in rf.estimators_]
-    pairs_by_depth = [list(it.chain(*pair_list)) for pair_list in 
-                      list(it.izip_longest(*pairs_by_est, fillvalue=[]))]
+    pairs_by_depth = [list(it.chain(*pair_list)) for pair_list in
+                      list(it.zip_longest(*pairs_by_est, fillvalue=[]))]
     pairs_flat = list(it.chain(*pairs_by_depth))
     depths_by_pair = {}
     for depth, pairs in enumerate(pairs_by_depth):
@@ -117,54 +120,52 @@ def feature_pairs_in_rf(rf, weight_by_depth=None, verbose=True, n=20):
                 depths_by_pair[pair] += [depth]
             except KeyError:
                 depths_by_pair[pair] = [depth]
-    counts_by_pair=Counter(pairs_flat)
+    counts_by_pair = Counter(pairs_flat)
     count_pairs_by_depth = [Counter(pairs) for pairs in pairs_by_depth]
 
     depth_len = len(pairs_by_depth)
     if weight_by_depth is None:
         weight_by_depth = [(depth_len - float(depth)) / depth_len for depth in
-                           xrange(depth_len)]
+                           range(depth_len)]
     weight_filler = it.repeat(0.0, depth_len - len(weight_by_depth))
     wdiogenes = list(it.chain(weight_by_depth, weight_filler))
-    
-    average_depth_by_pair = {pair: float(sum(depths)) / len(depths) for 
-                             pair, depths in depths_by_pair.iteritems()}
+
+    average_depth_by_pair = {pair: float(sum(depths)) / len(depths) for
+                             pair, depths in depths_by_pair.items()}
 
     weighted = {pair: sum([wdiogenes[depth] for depth in depths])
-                for pair, depths in depths_by_pair.iteritems()}
+                for pair, depths in depths_by_pair.items()}
 
     if verbose:
-        print '=' * 80
-        print 'RF Subsequent Pair Analysis'
-        print '=' * 80
-        print
+        print('=' * 80)
+        print('RF Subsequent Pair Analysis')
+        print('=' * 80)
+        print()
         _feature_pair_report(
-                counts_by_pair.most_common(), 
-                'Overall Occurrences', 
-                'occurrences',
-                n=n)
+            counts_by_pair.most_common(),
+            'Overall Occurrences',
+            'occurrences',
+            n=n)
         _feature_pair_report(
-                sorted([item for item in average_depth_by_pair.iteritems()], 
-                       key=lambda item: item[1]),
-                'Average depth',
-                'average depth',
-                'Max depth was {}'.format(depth_len - 1),
-                n=n)
+            sorted([item for item in average_depth_by_pair.items()],
+                   key=lambda item: item[1]),
+            'Average depth',
+            'average depth',
+            'Max depth was {}'.format(depth_len - 1),
+            n=n)
         _feature_pair_report(
-                sorted([item for item in weighted.iteritems()], 
-                       key=lambda item: item[1]),
-                'Occurrences weighted by depth',
-                'sum weight',
-                'Wdiogenes for depth 0, 1, 2, ... were: {}'.format(wdiogenes),
-                n=n)
+            sorted([item for item in weighted.items()],
+                   key=lambda item: item[1]),
+            'Occurrences weighted by depth',
+            'sum weight',
+            'Wdiogenes for depth 0, 1, 2, ... were: {}'.format(wdiogenes),
+            n=n)
 
         for depth, pairs in enumerate(count_pairs_by_depth):
             _feature_pair_report(
-                    pairs.most_common(), 
-                    'Occurrences at depth {}'.format(depth), 
-                    'occurrences',
-                    n=n)
+                pairs.most_common(),
+                'Occurrences at depth {}'.format(depth),
+                'occurrences',
+                n=n)
 
-
-    return (counts_by_pair, count_pairs_by_depth, average_depth_by_pair, 
-            weighted)
+    return (counts_by_pair, count_pairs_by_depth, average_depth_by_pair, weighted)
